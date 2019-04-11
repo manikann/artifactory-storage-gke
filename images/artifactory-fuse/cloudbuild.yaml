@@ -1,0 +1,23 @@
+substitutions:
+  _WORKING_DIR: .
+  _ARTIFACTORY_VERSION: 6.9.0
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: ${_WORKING_DIR}
+    args: [
+      'build',
+      '--build-arg',
+      'BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"`',
+      '--build-arg',
+      'COMMIT_SHA=$COMMIT_SHA',
+      '--build-arg',
+      'ARTIFACTORY_VERSION=${_ARTIFACTORY_VERSION}',
+      '--tag=gcr.io/$PROJECT_ID/artifactory-pro-fuse:${_ARTIFACTORY_VERSION}',
+      '.'
+    ]
+
+images: ['gcr.io/$PROJECT_ID/artifactory-pro-fuse:${_ARTIFACTORY_VERSION}']
+tags:
+  - "fuse"
+  - "gcs"
+  - "artifactory-pro"

@@ -1,0 +1,22 @@
+substitutions:
+  _WORKING_DIR: .
+  _HELM_VERSION: v2.13.1
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  dir: ${_WORKING_DIR}
+  args: [
+    'build',
+    '--build-arg',
+    'BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"`',
+    '--build-arg',
+    'COMMIT_SHA=$COMMIT_SHA',
+    '--build-arg',
+    'HELM_VERSION=${_HELM_VERSION}',
+    '--tag=gcr.io/$PROJECT_ID/cloud-builders-community-helm:${_HELM_VERSION}',
+    '.'
+  ]
+
+images: ['gcr.io/$PROJECT_ID/cloud-builders-community-helm:${_HELM_VERSION}']
+tags:
+  - "helm"
+  - "tillerless"

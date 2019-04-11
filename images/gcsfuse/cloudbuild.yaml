@@ -1,0 +1,20 @@
+substitutions:
+  _WORKING_DIR: .
+  _GCSFUSE_VERSION: 0.0.1
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: ${_WORKING_DIR}
+    args: [
+      'build',
+      '--build-arg',
+      'BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"`',
+      '--build-arg',
+      'COMMIT_SHA=$COMMIT_SHA',
+      '--tag=gcr.io/$PROJECT_ID/gcsfuse:${_GCSFUSE_VERSION}',
+      '.'
+    ]
+
+images: ['gcr.io/$PROJECT_ID/gcsfuse:${_GCSFUSE_VERSION}']
+tags:
+  - "fuse"
+  - "gcs"

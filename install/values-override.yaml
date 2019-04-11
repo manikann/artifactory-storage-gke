@@ -1,0 +1,22 @@
+artifactory:
+  service:
+    type: NodePort
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1"
+    limits:
+      memory: "6Gi"
+      cpu: "2"
+  javaOpts:
+    xms: "2g"
+    xmx: "4g"
+  livenessProbe:
+    enabled: false
+  readinessProbe:
+    enabled: false
+postgresql:
+  enabled: true
+  imageTag: 11.2
+nginx:
+  enabled: false

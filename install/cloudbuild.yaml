@@ -1,0 +1,156 @@
+substitutions:
+  _WORKING_DIR: .
+  _HELM_VERSION: v2.13.1
+  _CHART_VERSION: '7.13.7'
+  _CLOUDSDK_COMPUTE_ZONE: us-central1-f
+  _CLOUDSDK_CONTAINER_CLUSTER: artifactory-cluster
+steps:
+  - id: 'prepare-for-install'
+    name: gcr.io/${PROJECT_ID}/cloud-builders-community-helm:${_HELM_VERSION}
+    dir: ${_WORKING_DIR}
+    args:
+      - 'bash'
+      - '-c'
+      - |
+        set -xeo pipefail
+
+        curl -ksSLf https://ipinfo.io/ip
+
+        gsutil cp gs://${PROJECT_ID}-artifactory-config/* .
+
+        kubectl create secret generic artifactory-license \
+          --from-file=artifactory.lic --dry-run -o yaml | kubectl apply -f -
+
+        kubectl create configmap bootstrap-config \
+          --from-file=security.import.xml --from-file=artifactory.config.import.xml --dry-run -o yaml | kubectl apply -f -
+
+        kubectl create secret generic gcs-key \
+          --from-file=key.json=artifactory-gcs-sa.json --dry-run -o yaml | kubectl apply -f -
+    env:
+      - 'TILLERLESS=true'
+      - 'GCLOUD_PROJECT=${PROJECT_ID}'
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+
+
+  - id: 'artiractory-gcsfuse'
+    name: gcr.io/${PROJECT_ID}/cloud-builders-community-helm:${_HELM_VERSION}
+    dir: ${_WORKING_DIR}
+    args:
+      - 'bash'
+      - '-c'
+      - |
+        helm upgrade gcsfuse ./artifactory \
+            --force \
+            --install \
+            --debug \
+            --timeout 900 \
+            --version  ${_CHART_VERSION} \
+            --values values-override.yaml \
+            --values values-gcsfuse.yaml \
+            --set artifactory.nodePort=30671 \
+            --set artifactory.persistence.type=gcs-fuse \
+            --set artifactory.license.secret=artifactory-license,artifactory.license.dataKey=artifactory.lic \
+            --set artifactory.configMapName=bootstrap-config \
+            --set artifactory.image.repository=gcr.io/${PROJECT_ID}/artifactory-pro-fuse \
+            --set artifactory.extraEnvironmentVariables[1].name=BUCKET \
+            --set artifactory.extraEnvironmentVariables[1].value=${PROJECT_ID}-artifactory-filestore \
+            --set artifactory.masterKey=$(cat master.key) \
+            --set postgresql.postgresPassword=$(cat db.password) \
+            --set artifactory.accessAdmin.password=$(cat access.password)
+    env:
+      - 'TILLERLESS=true'
+      - 'GCLOUD_PROJECT=${PROJECT_ID}'
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+
+
+  - id: 'artiractory-pvc'
+    name: gcr.io/${PROJECT_ID}/cloud-builders-community-helm:${_HELM_VERSION}
+    dir: ${_WORKING_DIR}
+    args:
+      - 'bash'
+      - '-c'
+      - |
+        helm upgrade pvc ./artifactory \
+            --force \
+            --install \
+            --debug \
+            --timeout 900 \
+            --version  ${_CHART_VERSION} \
+            --values values-override.yaml \
+            --set artifactory.nodePort=30672 \
+            --set artifactory.persistence.type=file-system \
+            --set artifactory.license.secret=artifactory-license,artifactory.license.dataKey=artifactory.lic \
+            --set artifactory.configMapName=bootstrap-config \
+            --set artifactory.image.repository=gcr.io/${PROJECT_ID}/artifactory-pro-fuse \
+            --set artifactory.masterKey=$(cat master.key) \
+            --set postgresql.postgresPassword=$(cat db.password) \
+            --set artifactory.accessAdmin.password=$(cat access.password)
+    env:
+      - 'TILLERLESS=true'
+      - 'GCLOUD_PROJECT=${PROJECT_ID}'
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+
+  - id: 'artiractory-fulldb'
+    name: gcr.io/${PROJECT_ID}/cloud-builders-community-helm:${_HELM_VERSION}
+    dir: ${_WORKING_DIR}
+    args:
+      - 'bash'
+      - '-c'
+      - |
+        helm upgrade fulldb ./artifactory \
+            --force \
+            --install \
+            --debug \
+            --timeout 900 \
+            --version  ${_CHART_VERSION} \
+            --values values-override.yaml \
+            --set artifactory.nodePort=30673 \
+            --set artifactory.persistence.type=full-db \
+            --set artifactory.license.secret=artifactory-license,artifactory.license.dataKey=artifactory.lic \
+            --set artifactory.configMapName=bootstrap-config \
+            --set artifactory.image.repository=gcr.io/${PROJECT_ID}/artifactory-pro-fuse \
+            --set artifactory.masterKey=$(cat master.key) \
+            --set postgresql.postgresPassword=$(cat db.password) \
+            --set artifactory.accessAdmin.password=$(cat access.password)
+    env:
+      - 'TILLERLESS=true'
+      - 'GCLOUD_PROJECT=${PROJECT_ID}'
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+
+  - id: 'artiractory-gcs'
+    name: gcr.io/${PROJECT_ID}/cloud-builders-community-helm:${_HELM_VERSION}
+    dir: ${_WORKING_DIR}
+    args:
+      - 'bash'
+      - '-c'
+      - |
+        helm upgrade gcs ./artifactory \
+            --force \
+            --install \
+            --debug \
+            --timeout 900 \
+            --version  ${_CHART_VERSION} \
+            --values values-override.yaml \
+            --set artifactory.nodePort=30674 \
+            --set artifactory.persistence.type=google-storage \
+            --set artifactory.persistence.googleStorage.identity=$(cat gcs-api.key) \
+            --set artifactory.persistence.googleStorage.credential=$(cat gcs-api.password) \
+            --set artifactory.persistence.googleStorage.bucketName=${PROJECT_ID}-artifactory-gcsstore \
+            --set artifactory.license.secret=artifactory-license,artifactory.license.dataKey=artifactory.lic \
+            --set artifactory.configMapName=bootstrap-config \
+            --set artifactory.image.repository=gcr.io/${PROJECT_ID}/artifactory-pro-fuse \
+            --set artifactory.masterKey=$(cat master.key) \
+            --set postgresql.postgresPassword=$(cat db.password) \
+            --set artifactory.accessAdmin.password=$(cat access.password)
+    env:
+      - 'TILLERLESS=true'
+      - 'GCLOUD_PROJECT=${PROJECT_ID}'
+      - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+
+timeout: 1800s
+tags: ['artifactory']

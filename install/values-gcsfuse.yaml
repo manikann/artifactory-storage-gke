@@ -1,0 +1,24 @@
+artifactory:
+  customInitContainers: |
+    - name: "copy-gcs-key"
+      image: "{{ .Values.initContainerImage }}"
+      imagePullPolicy: IfNotPresent
+      command:
+        - 'sh'
+        - '-c'
+        - 'cp -v /gcs/key.json {{ .Values.artifactory.persistence.mountPath }}/artifactory-gcs-sa.json'
+      volumeMounts:
+        - mountPath: "{{ .Values.artifactory.persistence.mountPath }}"
+          name: artifactory-volume
+        - mountPath: /gcs
+          name: artifactory-gcs-key
+  customVolumes: |
+    - name: artifactory-gcs-key
+      secret:
+        secretName: gcs-key
+  preStartCommand: "/start-gcsfuse.sh"
+  extraEnvironmentVariables:
+    - name: GCS_FUSE_OPTS
+      value: "--debug_gcs --stat-cache-ttl 1h --type-cache-ttl 1h --limit-bytes-per-sec -1 --limit-ops-per-sec -1"
+  loggers:
+   - gcsfuse.log
