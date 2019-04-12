@@ -21,6 +21,8 @@ Benchmark is done using two maven project
    
 ## Result
 
+![result][./docs/benchmark-results.png]
+
 #### S1: Single module maven project 
 *all times in seconds*
 
